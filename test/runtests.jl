@@ -1,10 +1,10 @@
 using Microbiome
 using Distances
+using LinearAlgebra
 using DataFrames
 using Clustering
-using Colors
-using StatPlots
-using Base.Test
+using Random
+using Test
 
 @testset "Abundances" begin
     # Constructors
@@ -13,6 +13,8 @@ using Base.Test
 
     a1 = abundancetable(M)
     a2 = abundancetable(df)
+    @test typeof(a1) <:AbstractComMatrix
+    @test typeof(a2) <:AbstractComMatrix
 
     abund = abundancetable(
         M, ["sample_$x" for x in 1:10],
@@ -60,35 +62,26 @@ using Base.Test
     end
 
     @test featurenames(filt)[end] == "other"
-
-    # Plotting
-
-    @test typeof(abundanceplot(abund, topabund=5)) <: Plots.Plot
-    @test_skip typeof(abundanceplot(abund, sorton=:hclust)) <: Plots.Plot # Needs BrayCurtis()
-    @test_skip typeof(abundanceplot(abund, sorton=:x1)) <: Plots.Plot # Needs method feature sorting
-
-    @test typeof(annotationbar(parse.(Color, ["red", "white", "blue"]))) <: Plots.Plot
-
 end
 
 @testset "Distances" begin
     # Constructors
-    srand(1)
+    Random.seed!(1)
     M = rand(100, 10)
     df = hcat(DataFrame(x=collect(1:100)), DataFrame(M))
     abund = abundancetable(
         M, ["sample_$x" for x in 1:10],
         ["feature_$x" for x in 1:100])
 
-    dm1 = getdm(M, Jaccard()) # TODO: switch to BrayCurtis when Distances.jl adds release
-    dm2 = getdm(df, Jaccard()) # TODO: switch to BrayCurtis when Distances.jl adds release
-    dm = getdm(abund, Jaccard()) # TODO: switch to BrayCurtis when Distances.jl adds release
+    dm1 = getdm(M, BrayCurtis())
+    dm2 = getdm(df, BrayCurtis())
+    dm = getdm(abund, BrayCurtis())
 
     @test dm.dm == dm1.dm == dm2.dm
 
-    rowdm1 = getrowdm(M, Jaccard()) # TODO: switch to BrayCurtis when Distances.jl adds release
-    rowdm2 = getrowdm(df, Jaccard()) # TODO: switch to BrayCurtis when Distances.jl adds release
-    rowdm = getrowdm(abund, Jaccard()) # TODO: switch to BrayCurtis when Distances.jl adds release
+    rowdm1 = getrowdm(M, BrayCurtis())
+    rowdm2 = getrowdm(df, BrayCurtis())
+    rowdm = getrowdm(abund, BrayCurtis())
 
     @test rowdm.dm == rowdm1.dm == rowdm2.dm
 
@@ -111,33 +104,31 @@ end
     @test length(principalcoord(p, 1)) == size(dm, 1)
     @test principalcoord(p, 1:size(p,2)) == p.eigenvectors
 
-    # Plotting
-    @test typeof(plot(p)) <: Plots.Plot
-    @test typeof(plot(p)) <: Plots.Plot
+    # Diversity indicies
+    R = 100
+    s1 = rand(R) # high diversity
+    s2 = [i % 10 == 0 ? s1[i] : 0 for i in 1:R] # low diversity
+    s3 = ones(R) # uniform
+    s4 = [1., zeros(R-1)...] # no diversity
 
+    @test shannon(s1) > shannon(s2)
+    @test shannon(s3) ≈ log(R)
+    @test shannon(s4) ≈ 0.
+
+    @test ginisimpson(s1) > ginisimpson(s2)
+    @test ginisimpson(s3) ≈ 1. - 1/R
+    @test ginisimpson(s4) ≈ 0.
 end
 
 @testset "Leaf Ordering" begin
-    srand(42)
+    Random.seed!(42)
     m = rand(100, 10)
 
-    dm = pairwise(Jaccard(), m)
+    dm = pairwise(BrayCurtis(), m)
     h = hclust(dm, :single);
 
     ordered = optimalorder(h, dm)
 
     @test ordered.order == [7, 3, 1, 9, 2, 6, 10, 4, 5, 8]
     @test ordered.merge == h.merge
-
-    # Plotting
-
-    @test typeof(hclustplot(ordered)) <: Plots.Plot
-
-end
-
-@testset "Biobakery Utilities" begin
-    abund = metaphlan_import("metaphlan_test.tsv", level=:species, shortnames=true)
-
-    @test typeof(abund) <: ComMatrix
-    @test size(abund) == (15, 7)
 end

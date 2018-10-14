@@ -23,7 +23,7 @@ export
     getsample,
     samplenames,
     sampletotals,
-    ## similarity
+    ## distances
     getdm,
     getrowdm,
     pcoa,
@@ -32,38 +32,25 @@ export
     variance,
     optimalorder,
     optimalorder!,
-    ## plotting
-    hclustplot,
-    annotationbar,
-    ## utils
-    metaphlan_import,
-    panphlan_calcs,
-    bysample,
-    taxfilter,
-    taxfilter!
+    ginisimpson,
+    shannon
 
 using Reexport
 @reexport using SpatialEcology
 @reexport using Distances
 
-using RecipesBase
-using StatPlots
+using LinearAlgebra
+using Statistics
 using StatsBase
-using Colors
 using DataFrames
+using Clustering
 
-import SpatialEcology.@forward_func
-import SpatialEcology.summary
-import SpatialEcology.show
-import Clustering: Hclust, hclust
+import SpatialEcology: @forward_func
 import Base: getindex, setindex, length
 
 include("ecotranslations.jl")
 include("abundances.jl")
 include("distances.jl")
 include("leafordering.jl")
-include("plotting.jl")
-include("biobakery_utils.jl")
-
 
 end  # module Microbiome

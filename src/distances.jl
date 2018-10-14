@@ -10,28 +10,34 @@ struct PCoA{T<:AbstractFloat} <: AbstractArray{T,2}
     variance_explained::Array{T,1}
 end
 
-DistanceMatrix{T<:Real}(dm::AbstractArray{T,2}, distance) = DistanceMatrix(dm, Vector(1:size(dm,1)), distance)
+DistanceMatrix(dm::AbstractArray{T,2}, distance) where {T<:Real} = DistanceMatrix(dm, Vector(1:size(dm,1)), distance)
 
 @forward_func DistanceMatrix.dm Base.getindex, Base.setindex, Base.length, Base.size
 @forward_func PCoA.eigenvectors Base.getindex, Base.setindex, Base.length, Base.size
 
 function getdm(t::AbstractComMatrix, distance::PreMetric)
+    dm = pairwise(distance, t.occurrences)
+    for i in eachindex(dm); if isnan(dm[i]); dm[i] = 1; end; end
     return DistanceMatrix(
-            pairwise(distance, t.occurrences),
+            dm,
             samplenames(t),
             distance)
 end
 
 function getdm(t::AbstractArray, distance::PreMetric)
+    dm = pairwise(distance, t)
+    for i in eachindex(dm); if isnan(dm[i]); dm[i] = 1; end; end
     return DistanceMatrix(
-            pairwise(distance, t),
+            dm,
             Vector(1:size(t,2)),
             distance)
 end
 
 function getdm(df::DataFrame, distance::PreMetric)
+    dm = pairwise(distance, convert(Matrix, df[2:end]))
+    for i in eachindex(dm); if isnan(dm[i]); dm[i] = 1; end; end
     return DistanceMatrix(
-            pairwise(distance, Matrix(df[2:end])),
+            dm,
             Vector(names(df[2:end])),
             distance)
 end
@@ -53,7 +59,7 @@ function getrowdm(arr::AbstractArray, distance::PreMetric)
 end
 
 function getrowdm(df::DataFrame, distance::PreMetric)
-    m = Matrix(df[2:end])'
+    m = convert(Matrix, df[2:end])'
     return DistanceMatrix(
             pairwise(distance, m),
             Vector(df[:,1]),
@@ -82,10 +88,10 @@ function pcoa(D::DistanceMatrix; correct_neg::Bool=false)
 end
 
 function sortedeig(M::Array{Float64,2})
-    f = eigfact(M)
+    f = eigen(M, scale=true, permute=true)
     v = real.(f.values)
     p = sortperm(v, rev = true)
-    return LinAlg.Eigen(v[p], real.(f.vectors[:,p]))
+    return LinearAlgebra.Eigen(v[p], real.(f.vectors[:,p]))
 end
 
 
@@ -96,6 +102,22 @@ function getdelta(A::AbstractArray{T,2}) where T <: AbstractFloat
 end
 
 
-eigenvalue(p::PCoA, inds...) = p.eigenvalues[inds...]
-variance(p::PCoA, inds...) = p.variance_explained[inds...]
-principalcoord(p::PCoA, inds...) = p[:,inds...]
+@inline eigenvalue(p::PCoA, inds...) = p.eigenvalues[inds...]
+@inline variance(p::PCoA, inds...) = p.variance_explained[inds...]
+@inline principalcoord(p::PCoA, inds...) = p[:,inds...]
+
+
+## Diversity Measures
+
+function shannon(v::AbstractVector{T}) where T<:Real
+    total = sum(v)
+    relab = map(x-> x/total, v)
+    return -sum([log(x^x) for x in relab])
+end
+
+
+function ginisimpson(v::AbstractVector{T}) where T<:Real
+    total = sum(v)
+    relab = map(x-> x/total, v)
+    return 1 - sum([x^2 for x in relab])
+end
